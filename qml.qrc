@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/textTools.js</file>
+        <file>qml/main.qml</file>
+        <file>qml/TunerStyle.qml</file>
+        <file>qml/PeakView.qml</file>
+    </qresource>
+</RCC>
