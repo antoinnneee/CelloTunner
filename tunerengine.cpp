@@ -12,7 +12,7 @@ TunerEngine::TunerEngine(QObject *parent)
     : QObject(parent)
     , m_audioSource(nullptr)
     , m_audioDevice(nullptr)
-    , m_fftBuffer(BUFFER_SIZE)
+    , m_fftBuffer(m_bufferSize)
 {
     setupAudioInput();
 }
@@ -25,8 +25,10 @@ TunerEngine::~TunerEngine()
 
 void TunerEngine::setupAudioInput()
 {
+    updateMaximumSampleRate();
+
     QAudioFormat format;
-    format.setSampleRate(SAMPLE_RATE);
+    format.setSampleRate(m_sampleRate);
     format.setChannelCount(1);
     format.setSampleFormat(QAudioFormat::Int16);
 
@@ -37,9 +39,27 @@ void TunerEngine::setupAudioInput()
     if (!inputDevice.isFormatSupported(format)) {
         qWarning() << "Default format not supported, trying to use nearest";
         format = inputDevice.preferredFormat();
+        m_sampleRate = format.sampleRate();
+        emit sampleRateChanged();
     }
 
     m_audioSource = new QAudioSource(inputDevice, format, this);
+}
+
+void TunerEngine::updateMaximumSampleRate()
+{
+    QMediaDevices* devices = new QMediaDevices(this);
+    QAudioDevice inputDevice = devices->defaultAudioInput();
+    QAudioFormat format = inputDevice.preferredFormat();
+    
+    int maxRate = format.sampleRate();
+    if (m_maximumSampleRate != maxRate) {
+        m_maximumSampleRate = maxRate;
+        emit maximumSampleRateChanged();
+    }
+    qDebug() << "Maximum sample rate:" << m_maximumSampleRate;
+
+    delete devices;
 }
 
 void TunerEngine::start()
@@ -70,16 +90,17 @@ void TunerEngine::processAudioInput()
     // Read available data and add it to accumulation buffer
     QByteArray buffer = m_audioDevice->readAll();
     m_accumulationBuffer.append(buffer);
-//    qDebug() << "Accumulated buffer size:" << m_accumulationBuffer.size();
 
     // Process data when we have enough samples
-    while (m_accumulationBuffer.size() >= BUFFER_SIZE * 2) {
+    while (m_accumulationBuffer.size() >= m_bufferSize * 2) {
         processAccumulatedData();
     }
 }
 
 double TunerEngine::calculateMedianFrequency(double newFrequency)
 {
+    if (HISTORY_SIZE < 2)
+        return newFrequency;
     // Add new frequency to history
     m_frequencyHistory.enqueue(newFrequency);
     
@@ -113,16 +134,16 @@ double TunerEngine::calculateMedianFrequency(double newFrequency)
 void TunerEngine::processAccumulatedData()
 {
     QVector<double> samples;
-    samples.reserve(BUFFER_SIZE);
+    samples.reserve(m_bufferSize);
 
     // Convert bytes to doubles
     const qint16* data = reinterpret_cast<const qint16*>(m_accumulationBuffer.constData());
-    for (int i = 0; i < BUFFER_SIZE; ++i) {
+    for (int i = 0; i < m_bufferSize; ++i) {
         samples.append(data[i] / 32768.0); // Normalize to [-1, 1]
     }
 
     // Remove the processed data from the accumulation buffer
-    m_accumulationBuffer.remove(0, BUFFER_SIZE * 2);
+    m_accumulationBuffer.remove(0, m_bufferSize * 2);
 
     // Calculate and emit signal level
     double dbLevel = calculateDBFS(samples);
@@ -236,8 +257,8 @@ void TunerEngine::updatePeaks(const QVector<Peak>& peaks)
 double TunerEngine::detectFrequency(const QVector<double>& samples)
 {
     // Adjust frequency range for cello (C2 ~65Hz to C6 ~1047Hz)
-    int maxPeriod = SAMPLE_RATE / 50;  // Minimum frequency of 50 Hz (lower than C2)
-    int minPeriod = SAMPLE_RATE / 1100; // Maximum frequency around 1100 Hz
+    int maxPeriod = m_sampleRate / 50;  // Minimum frequency of 50 Hz (lower than C2)
+    int minPeriod = m_sampleRate / 1100; // Maximum frequency around 1100 Hz
 
     QVector<Peak> peaks;
 
@@ -250,7 +271,7 @@ double TunerEngine::detectFrequency(const QVector<double>& samples)
         int validSamples = 0;
 
         // Normalized autocorrelation
-        for (int i = 0; i < BUFFER_SIZE - period; ++i) {
+        for (int i = 0; i < m_bufferSize - period; ++i) {
             correlation += samples[i] * samples[i + period];
             validSamples++;
         }
@@ -263,7 +284,7 @@ double TunerEngine::detectFrequency(const QVector<double>& samples)
         // Detect peaks
         if (rising && correlation < lastCorrelation) {
             // We just passed a peak
-            double frequency = static_cast<double>(SAMPLE_RATE) / (period - 1);
+            double frequency = static_cast<double>(m_sampleRate) / (period - 1);
             peaks.append({frequency, std::abs(lastCorrelation)});
             rising = false;
         } else if (correlation > lastCorrelation) {
@@ -381,5 +402,29 @@ void TunerEngine::setDbThreshold(double threshold)
     if (m_dbThreshold != threshold) {
         m_dbThreshold = threshold;
         emit dbThresholdChanged();
+    }
+}
+
+void TunerEngine::setSampleRate(int rate)
+{
+    if (m_sampleRate != rate) {
+        m_sampleRate = rate;
+        // Reconfigure audio input with new sample rate
+        stop();
+        setupAudioInput();
+        start();
+        emit sampleRateChanged();
+    }
+}
+
+void TunerEngine::setBufferSize(int size)
+{
+    if (m_bufferSize != size) {
+        m_bufferSize = size;
+        // Resize FFT buffer
+        m_fftBuffer.resize(size);
+        // Clear accumulation buffer to avoid processing with wrong size
+        m_accumulationBuffer.clear();
+        emit bufferSizeChanged();
     }
 } 

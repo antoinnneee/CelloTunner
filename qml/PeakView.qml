@@ -10,125 +10,205 @@ Rectangle {
     property var peaks: []
     property double maxFrequency: 1100 // Maximum frequency to display
     property double minFrequency: 50   // Minimum frequency to display
+    property bool logarithmicScale: true // Default to logarithmic scale
+    onLogarithmicScaleChanged: {
+        grid.clear_canvas();
+        grid.requestPaint();
+    }
     
-    // Title
-    Label {
-        id: title
-        text: "Frequency Peaks"
-        color: "#ffffff"
-        font.pixelSize: 14
-        anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.margins: 8
+    // Helper functions for logarithmic scale
+    function logScale(value) {
+        return Math.log(value / minFrequency) / Math.log(maxFrequency / minFrequency);
     }
 
-    // Peak visualization
-    Item {
+    function getFrequencyPosition(freq) {
+        var freqPos = logarithmicScale ?
+                    logScale(freq) * graphArea.width :
+                    (freq - minFrequency) / (maxFrequency - minFrequency) * graphArea.width;
+        console.log("freq :", freq, "pos :", freqPos)
+        return freqPos;
+    }
+    function getFrequencyPositionLabel(freq) {
+        var freqPos = logarithmicScale ?
+                    logScale(freq) * graphArea.width :
+                    (freq - minFrequency) / (maxFrequency - minFrequency) * graphArea.width;
+        console.log("freqLabel :", freq, "pos :", freqPos)
+        return freqPos;
+    }
+
+    function getFrequencyAtPosition(pos) {
+        if (logarithmicScale) {
+            let logMin = Math.log(minFrequency);
+            let logMax = Math.log(maxFrequency);
+            return Math.exp(logMin + (pos / graphArea.width) * (logMax - logMin));
+        }
+        return minFrequency + (pos / graphArea.width) * (maxFrequency - minFrequency);
+    }
+    
+    ColumnLayout {
         anchors.fill: parent
-        anchors.topMargin: 30
-        anchors.bottomMargin: 30
-        anchors.leftMargin: 40
-        anchors.rightMargin: 10
+        spacing: 4
+        
+        // Header with title and scale switch
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.margins: 8
+            spacing: 10
 
-        // Frequency axis markers
-        Row {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: 20
-            spacing: parent.width / 5
+            Label {
+                text: "Frequency Peaks"
+                color: "#ffffff"
+                font.pixelSize: 14
+                Layout.fillWidth: true
+            }
 
-            Repeater {
-                model: 6
-                Label {
-                    text: Math.round(minFrequency + (maxFrequency - minFrequency) * index / 5) + "Hz"
-                    color: "#9e9e9e"
-                    font.pixelSize: 10
-                }
+            Label {
+                text: "Log Scale"
+                color: "#9e9e9e"
+                font.pixelSize: 12
+            }
+
+            Switch {
+                checked: logarithmicScale
+                onCheckedChanged: logarithmicScale = checked
+                Material.accent: Material.Purple
             }
         }
 
-        // Amplitude axis markers
-        Column {
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            width: 35
-            spacing: parent.height / 4
+        // Peak visualization
+        Item {
+            id: graphArea
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.margins: 8
+            Layout.leftMargin: 40
+            Layout.rightMargin: 10
+            Layout.bottomMargin: 30
+            // Frequency axis markers
+            Row {
+                id: rowFreqLabel
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 20
+                width: parent.width
 
-            Repeater {
-                model: 5
-                Label {
-                    text: (100 - index * 25) + "%"
-                    color: "#9e9e9e"
-                    font.pixelSize: 10
+                Repeater {
+                    model: logarithmicScale ? 
+                        [50, 100, 200, 500, 1000] :
+                        [50, 250, 450, 650, 850, 1050]
+
+                    Label {
+                        x: getFrequencyPositionLabel(modelData)
+                        text: modelData + "Hz"
+                        color: "#9e9e9e"
+                        font.pixelSize: 10
+                    }
                 }
             }
-        }
 
-        // Peak bars
-        Repeater {
-            model: peaks
-            Rectangle {
-                property double freq: modelData.frequency
-                property double amp: modelData.amplitude
-                
-                x: (freq - minFrequency) / (maxFrequency - minFrequency) * parent.width
-                y: parent.height * (1 - amp)
-                width: 4
-                height: parent.height * amp
-                radius: 2
-                
-                gradient: Gradient {
-                    GradientStop { position: 0.0; color: "#4CAF50" }
-                    GradientStop { position: 0.7; color: "#FFC107" }
-                    GradientStop { position: 1.0; color: "#FF5722" }
+            // Amplitude axis markers
+            Column {
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                width: 35
+                spacing: parent.height / 4
+
+                Repeater {
+                    model: 5
+                    Label {
+                        text: (100 - index * 25) + "%"
+                        color: "#9e9e9e"
+                        font.pixelSize: 10
+                    }
                 }
+            }
+
+            // Peak bars
+            Repeater {
+                model: peaks
                 Rectangle {
-                    color:"red"
+                    property double freq: modelData.frequency
+                    property double amp: modelData.amplitude
+                    
+                    x: getFrequencyPosition(freq)
+                    y: parent.height * (1 - amp)
                     width: 4
-                    height: 4
+                    height: parent.height * amp
                     radius: 2
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
+                    
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: "#4CAF50" }
+                        GradientStop { position: 0.7; color: "#FFC107" }
+                        GradientStop { position: 1.0; color: "#FF5722" }
+                    }
 
-                // Frequency label
-                Label {
-                    text: Math.round(freq) + "Hz"
-                    color: "#ffffff"
-                    font.pixelSize: 10
-                    anchors.bottom: parent.top
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    rotation: -45
-                    visible: index < 3 // Show only top 3 frequencies
-                }
-            }
-        }
+                    Rectangle {
+                        color: "#FF5722"
+                        width: 4
+                        height: 4
+                        radius: 2
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
 
-        // Grid lines
-        Canvas {
-            anchors.fill: parent
-            onPaint: {
-                var ctx = getContext("2d");
-                ctx.strokeStyle = "#444444";
-                ctx.lineWidth = 1;
-
-                // Horizontal lines
-                for (var i = 0; i <= 4; i++) {
-                    ctx.beginPath();
-                    ctx.moveTo(0, i * height / 4);
-                    ctx.lineTo(width, i * height / 4);
-                    ctx.stroke();
-                }
-
-                // Vertical lines
-                for (var j = 0; j <= 5; j++) {
-                    ctx.beginPath();
-                    ctx.moveTo(j * width / 5, 0);
-                    ctx.lineTo(j * width / 5, height);
-                    ctx.stroke();
+                    // Frequency label
+                    Label {
+                        text: Math.round(freq) + "Hz"
+                        color: "#ffffff"
+                        font.pixelSize: 10
+                        anchors.bottom: parent.top
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        rotation: -45
+                        visible: index < 3 // Show only top 3 frequencies
+                    }
                 }
             }
+
+            // Grid lines
+            Canvas {
+                id: grid
+                anchors.fill: parent
+                function clear_canvas() {
+                            var ctx = getContext("2d");
+                            ctx.reset();
+                }
+                onPaint: {
+                    var ctx = getContext("2d");
+                    ctx.strokeStyle = "#444444";
+                    ctx.lineWidth = 1;
+
+                    // Horizontal lines
+                    for (var i = 0; i <= 4; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(0, i * height / 4);
+                        ctx.lineTo(width, i * height / 4);
+                        ctx.stroke();
+                    }
+
+                    // Vertical lines
+                    if (logarithmicScale) {
+                        console.log("draw vertical line")
+                        let freqs = [50, 100, 200, 500, 1000];
+                        freqs.forEach(freq => {
+                            let x = getFrequencyPosition(freq);
+                            ctx.beginPath();
+                            ctx.moveTo(x, 0);
+                            ctx.lineTo(x, height);
+                            ctx.stroke();
+                        });
+                    } else {
+                        for (var j = 0; j <= 5; j++) {
+                            ctx.beginPath();
+                            ctx.moveTo(j * width / 5, 0);
+                            ctx.lineTo(j * width / 5, height);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+
         }
     }
-} 
+}

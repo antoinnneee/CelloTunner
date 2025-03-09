@@ -27,6 +27,148 @@ ApplicationWindow {
     Material.accent: Material.Purple
     color: "#1a1a1a"  // Dark background
 
+    // Settings dialog
+    Dialog {
+        id: settingsDialog
+        title: "Settings"
+        modal: true
+        standardButtons: Dialog.Close
+        width: 400
+
+        anchors.centerIn: parent
+
+        footer: DialogButtonBox {
+            Button {
+                text: qsTr("Apply")
+                DialogButtonBox.buttonRole: DialogButtonBox.ApplyRole
+                highlighted: true
+                onClicked: {
+                    tuner.sampleRate = parseInt(sampleRateCombo.currentText)
+                    tuner.bufferSize = parseInt(bufferSizeCombo.currentText)
+                }
+            }
+            Button {
+                text: qsTr("Close")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                onClicked: settingsDialog.close()
+            }
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 20
+
+            Label {
+                text: "Sample Rate"
+                color: "#ffffff"
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                ComboBox {
+                    id: sampleRateCombo
+                    Layout.fillWidth: true
+                    model: {
+                        // Standard sample rates
+                        let rates = [8000, 11025, 16000, 22050, 32000, 44100, 48000, 88200, 96000, 176400, 192000];
+                        // Filter rates that are above maximum supported rate
+                        return rates.filter(rate => rate <= tuner.maximumSampleRate).map(rate => rate.toString());
+                    }
+                    currentIndex: {
+                        let idx = model.indexOf(tuner.sampleRate.toString());
+                        return idx >= 0 ? idx : 0;
+                    }
+                    Material.foreground: "white"
+                    Material.background: "#2d2d2d"
+                }
+                Label {
+                    text: "Hz"
+                    color: "#9e9e9e"
+                }
+            }
+
+            Label {
+                text: "Buffer Size"
+                color: "#ffffff"
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                ComboBox {
+                    id: bufferSizeCombo
+                    Layout.fillWidth: true
+                    model: ["1024", "2048", "4096", "8112", "16384"]
+                    currentIndex: {
+                        let idx = model.indexOf(tuner.bufferSize.toString());
+                        return idx >= 0 ? idx : 0;
+                    }
+                    Material.foreground: "white"
+                    Material.background: "#2d2d2d"
+                }
+                Label {
+                    text: "samples"
+                    color: "#9e9e9e"
+                }
+            }
+
+            // Current values display
+            ColumnLayout {
+                Layout.topMargin: 20
+                Layout.fillWidth: true
+                spacing: 5
+
+                Label {
+                    text: "Current Settings:"
+                    color: "#9e9e9e"
+                    font.bold: true
+                }
+
+                Label {
+                    text: "Sample Rate: " + tuner.sampleRate + " Hz"
+                    color: "#9e9e9e"
+                }
+
+                Label {
+                    text: "Maximum Sample Rate: " + tuner.maximumSampleRate + " Hz"
+                    color: "#9e9e9e"
+                }
+
+                Label {
+                    text: "Buffer Size: " + tuner.bufferSize + " samples"
+                    color: "#9e9e9e"
+                }
+
+                Label {
+                    text: "Latency: " + (tuner.bufferSize / tuner.sampleRate * 1000).toFixed(1) + " ms"
+                    color: "#9e9e9e"
+                }
+            }
+        }
+    }
+
+    // Settings button in the header
+    header: ToolBar {
+        Material.background: "#2d2d2d"
+        RowLayout {
+            anchors.fill: parent
+            Label {
+                text: "Cello Tuner"
+                font.pixelSize: 20
+                Layout.leftMargin: 20
+                color: "#ffffff"
+            }
+            Item { Layout.fillWidth: true }
+            ToolButton {
+                icon.source: "qrc:/icons/settings.png"  // You'll need to add this icon to your resources
+                icon.color: "#ffffff"
+                onClicked: settingsDialog.open()
+                text: "Settings"
+                display: AbstractButton.TextBesideIcon
+                Layout.rightMargin: 10
+            }
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
@@ -49,8 +191,8 @@ ApplicationWindow {
                 
                 // Convert dBFS to width percentage (-60dB to 0dB range)
                 width: {
-                    let dbLevel = Math.max(-60, Math.min(0, tuner.signalLevel));
-                    let percentage = (dbLevel + 60) / 60;
+                    let dbLevel = Math.max(-70, Math.min(0, tuner.signalLevel));
+                    let percentage = (dbLevel + 70) / 70;
                     return parent.width * percentage;
                 }
                 
@@ -75,8 +217,8 @@ ApplicationWindow {
                 color: "#FFFFFF"
                 opacity: 0.5
                 x: {
-                    let threshold = Math.max(-60, Math.min(0, tuner.dbThreshold));
-                    let percentage = (threshold + 60) / 60;
+                    let threshold = Math.max(-70, Math.min(0, tuner.dbThreshold));
+                    let percentage = (threshold + 70) / 70;
                     return parent.width * percentage;
                 }
             }
@@ -100,7 +242,7 @@ ApplicationWindow {
                 anchors.fill: parent
                 spacing: parent.width / 6
                 Repeater {
-                    model: ["-60", "-50", "-40", "-30", "-20", "-10", "0"]
+                    model: ["-70", "-60", "-50", "-40", "-30", "-20", "-10", "0"]
                     Label {
                         text: modelData
                         color: "#666666"
@@ -130,7 +272,7 @@ ApplicationWindow {
 
             Slider {
                 Layout.fillWidth: true
-                from: -60
+                from: -70
                 to: 0
                 stepSize: 1
                 value: tuner.dbThreshold
@@ -147,7 +289,7 @@ ApplicationWindow {
                     color: "#2d2d2d"
 
                     Rectangle {
-                        width: parent.width * (parent.parent.value + 60) / 60
+                        width: parent.width * (parent.parent.value + 70) / 70
                         height: parent.height
                         color: Material.accent
                         radius: 2

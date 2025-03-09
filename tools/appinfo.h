@@ -17,8 +17,6 @@ public:
     void setName(const QString &newName);
 
 public slots:
-    Q_INVOKABLE QString getVersionName();
-    Q_INVOKABLE QString getVersionNumber();
 
 signals:
     void nameChanged();

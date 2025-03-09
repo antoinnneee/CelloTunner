@@ -28,6 +28,9 @@ class TunerEngine : public QObject
     Q_PROPERTY(double signalLevel READ signalLevel NOTIFY signalLevelChanged)
     Q_PROPERTY(double dbThreshold READ dbThreshold WRITE setDbThreshold NOTIFY dbThresholdChanged)
     Q_PROPERTY(QVariantList peaks READ peaks NOTIFY peaksChanged)
+    Q_PROPERTY(int sampleRate READ sampleRate WRITE setSampleRate NOTIFY sampleRateChanged)
+    Q_PROPERTY(int bufferSize READ bufferSize WRITE setBufferSize NOTIFY bufferSizeChanged)
+    Q_PROPERTY(int maximumSampleRate READ maximumSampleRate NOTIFY maximumSampleRateChanged)
 
 public:
     explicit TunerEngine(QObject *parent = nullptr);
@@ -44,6 +47,11 @@ public:
     double dbThreshold() const { return m_dbThreshold; }
     QVariantList peaks() const { return m_peaks; }
     void setDbThreshold(double threshold);
+    int sampleRate() const { return m_sampleRate; }
+    void setSampleRate(int rate);
+    int bufferSize() const { return m_bufferSize; }
+    void setBufferSize(int size);
+    int maximumSampleRate() const { return m_maximumSampleRate; }
 
 signals:
     void noteChanged();
@@ -54,13 +62,16 @@ signals:
     void peaksChanged();
     void noteDetected(const QString &note, double frequency, double cents);
     void signalLevel(double dbFS);
+    void sampleRateChanged();
+    void bufferSizeChanged();
+    void maximumSampleRateChanged();
 
 private slots:
     void processAudioInput();
 
 private:
-    static constexpr int SAMPLE_RATE = 48000;
-    static constexpr int BUFFER_SIZE = 4096;
+    static constexpr int DEFAULT_SAMPLE_RATE = 48000;
+    static constexpr int DEFAULT_BUFFER_SIZE = 8112;
     static constexpr double A4_FREQUENCY = 440.0;
     static constexpr int HISTORY_SIZE = 1;
     static constexpr int OUTLIERS_TO_REMOVE = 0;
@@ -76,8 +87,11 @@ private:
     double m_frequency = 0.0;
     double m_cents = 0.0;
     double m_signalLevel = -90.0;
-    double m_dbThreshold = -50.0;
+    double m_dbThreshold = -70.0;
     QVariantList m_peaks;
+    int m_sampleRate = DEFAULT_SAMPLE_RATE;
+    int m_bufferSize = DEFAULT_BUFFER_SIZE;
+    int m_maximumSampleRate = DEFAULT_SAMPLE_RATE;
 
     // Frequency history
     QQueue<double> m_frequencyHistory;
@@ -91,6 +105,8 @@ private:
     void updatePeaks(const QVector<Peak>& peaks);
 
     QVector<std::complex<double>> m_fftBuffer;
+
+    void updateMaximumSampleRate();
 };
 
 #endif // TUNERENGINE_H 
