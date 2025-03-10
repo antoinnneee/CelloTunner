@@ -97,40 +97,6 @@ void TunerEngine::processAudioInput()
     }
 }
 
-double TunerEngine::calculateMedianFrequency(double newFrequency)
-{
-    if (HISTORY_SIZE < 2)
-        return newFrequency;
-    // Add new frequency to history
-    m_frequencyHistory.enqueue(newFrequency);
-    
-    // Keep only the last HISTORY_SIZE values
-    while (m_frequencyHistory.size() > HISTORY_SIZE) {
-        m_frequencyHistory.dequeue();
-    }
-    
-    // If we don't have enough samples yet, return the new frequency
-    if (m_frequencyHistory.size() < HISTORY_SIZE) {
-        return newFrequency;
-    }
-
-    // Copy values to a vector for sorting
-    QVector<double> sortedFreqs = m_frequencyHistory.toVector();
-    std::sort(sortedFreqs.begin(), sortedFreqs.end());
-
-    // Remove outliers (lowest and highest values)
-  //  sortedFreqs.remove(0, OUTLIERS_TO_REMOVE);  // Remove lowest
-    sortedFreqs.remove(sortedFreqs.size() - OUTLIERS_TO_REMOVE, OUTLIERS_TO_REMOVE);  // Remove highest
-
-    // Calculate average of remaining values
-    double sum = 0.0;
-    for (double freq : sortedFreqs) {
-        sum += freq;
-    }
-    
-    return sum / sortedFreqs.size();
-}
-
 void TunerEngine::processAccumulatedData()
 {
     QVector<double> samples;
@@ -153,59 +119,50 @@ void TunerEngine::processAccumulatedData()
         emit signalLevel(dbLevel);
     }
 
-    // Clear history and keep last note display when signal is too weak
-    if (dbLevel <= m_dbThreshold) {
-        m_frequencyHistory.clear();
-        return;
-    }
-
     // Only process frequency if signal is above threshold
-    double rawFrequency = detectFrequency(samples);
-    if (rawFrequency > 0) {
-        // Calculate median frequency from history
-        double smoothedFrequency = calculateMedianFrequency(rawFrequency);
-        
-        double cents;
-        QString note = frequencyToNote(smoothedFrequency, cents);
-        
-        // Update properties
-        bool changed = false;
-        if (m_currentNote != note) {
-            m_currentNote = note;
-            emit noteChanged();
-            changed = true;
-        }
-        if (m_frequency != smoothedFrequency) {
-            m_frequency = smoothedFrequency;
-            emit frequencyChanged();
-            changed = true;
-        }
-        if (m_cents != cents) {
-            m_cents = cents;
-            emit centsChanged();
-            changed = true;
-        }
-        
-        if (changed) {
-            emit noteDetected(note, smoothedFrequency, cents);
-        }
-        
-        // Add detailed debug output
-        qDebug() << "♪ Note detected:";
-        qDebug() << "  - Raw frequency:" << QString::number(rawFrequency, 'f', 2) << "Hz";
-        qDebug() << "  - Smoothed frequency:" << QString::number(smoothedFrequency, 'f', 2) << "Hz";
-        qDebug() << "  - History size:" << m_frequencyHistory.size();
-        qDebug() << "  - Note:" << note;
-        qDebug() << "  - Cents deviation:" << QString::number(cents, 'f', 1);
-        qDebug() << "  - Signal level:" << QString::number(dbLevel, 'f', 1) << "dBFS";
-        
-        // Add tuning guidance
-        if (qAbs(cents) < 5) {
-            qDebug() << "  ✓ In tune!";
-        } else if (cents > 0) {
-            qDebug() << "  ↓ Pitch is sharp - lower the pitch";
-        } else {
-            qDebug() << "  ↑ Pitch is flat - raise the pitch";
+    if (dbLevel > m_dbThreshold) {
+        double detectedFrequency = detectFrequency(samples);
+        if (detectedFrequency > 0) {
+            double cents;
+            QString note = frequencyToNote(detectedFrequency, cents);
+            
+            // Update properties
+            bool changed = false;
+            if (m_currentNote != note) {
+                m_currentNote = note;
+                emit noteChanged();
+                changed = true;
+            }
+            if (m_frequency != detectedFrequency) {
+                m_frequency = detectedFrequency;
+                emit frequencyChanged();
+                changed = true;
+            }
+            if (m_cents != cents) {
+                m_cents = cents;
+                emit centsChanged();
+                changed = true;
+            }
+            
+            if (changed) {
+                emit noteDetected(note, detectedFrequency, cents);
+            }
+            
+            // Add detailed debug output
+            qDebug() << "♪ Note detected:";
+            qDebug() << "  - Frequency:" << QString::number(detectedFrequency, 'f', 2) << "Hz";
+            qDebug() << "  - Note:" << note;
+            qDebug() << "  - Cents deviation:" << QString::number(cents, 'f', 1);
+            qDebug() << "  - Signal level:" << QString::number(dbLevel, 'f', 1) << "dBFS";
+            
+            // Add tuning guidance
+            if (qAbs(cents) < 5) {
+                qDebug() << "  ✓ In tune!";
+            } else if (cents > 0) {
+                qDebug() << "  ↓ Pitch is sharp - lower the pitch";
+            } else {
+                qDebug() << "  ↑ Pitch is flat - raise the pitch";
+            }
         }
     }
 }
@@ -231,7 +188,7 @@ double TunerEngine::calculateDBFS(const QVector<double>& samples)
 void TunerEngine::updatePeaks(const QVector<Peak>& peaks)
 {
     m_peaks.clear();
-    qsizetype count = std::min(peaks.size(), static_cast<qsizetype>(MAX_PEAKS));
+    qsizetype count = std::min(peaks.size(), static_cast<qsizetype>(m_maxPeaks));
     
     // Find maximum amplitude for normalization
     double maxAmplitude = 0.0;
@@ -379,8 +336,8 @@ QString TunerEngine::frequencyToNote(double frequency, double& cents)
 {
     static const QStringList noteNames = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
     
-    // Calculate number of half steps from A4
-    double halfSteps = 12 * log2(frequency / A4_FREQUENCY);
+    // Calculate number of half steps from A4 using the reference frequency
+    double halfSteps = 12 * log2(frequency / m_referenceA);
     
     // Round to nearest note
     int roundedHalfSteps = qRound(halfSteps);
@@ -426,5 +383,21 @@ void TunerEngine::setBufferSize(int size)
         // Clear accumulation buffer to avoid processing with wrong size
         m_accumulationBuffer.clear();
         emit bufferSizeChanged();
+    }
+}
+
+void TunerEngine::setMaxPeaks(int peaks)
+{
+    if (m_maxPeaks != peaks) {
+        m_maxPeaks = peaks;
+        emit maxPeaksChanged();
+    }
+}
+
+void TunerEngine::setReferenceA(double freq)
+{
+    if (m_referenceA != freq) {
+        m_referenceA = freq;
+        emit referenceAChanged();
     }
 } 

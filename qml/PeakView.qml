@@ -25,14 +25,12 @@ Rectangle {
         var freqPos = logarithmicScale ?
                     logScale(freq) * graphArea.width :
                     (freq - minFrequency) / (maxFrequency - minFrequency) * graphArea.width;
-        console.log("freq :", freq, "pos :", freqPos)
         return freqPos;
     }
     function getFrequencyPositionLabel(freq) {
         var freqPos = logarithmicScale ?
                     logScale(freq) * graphArea.width :
                     (freq - minFrequency) / (maxFrequency - minFrequency) * graphArea.width;
-        console.log("freqLabel :", freq, "pos :", freqPos)
         return freqPos;
     }
 
@@ -69,9 +67,11 @@ Rectangle {
             }
 
             Switch {
-                checked: logarithmicScale
-                onCheckedChanged: logarithmicScale = checked
+                id: switchLog
+                checked: root.logarithmicScale
+                onCheckedChanged: logarithmicScale = switchLog.checked
                 Material.accent: Material.Purple
+                visible: false
             }
         }
 
@@ -108,12 +108,16 @@ Rectangle {
             }
 
             // Amplitude axis markers
-            Column {
+            ColumnLayout {
+                id: ampAxisMarker
                 anchors.top: parent.top
+                anchors.topMargin: -15
                 anchors.bottom: parent.bottom
+                anchors.bottomMargin: -12
                 anchors.left: parent.left
+                anchors.leftMargin: -15
+
                 width: 35
-                spacing: parent.height / 4
 
                 Repeater {
                     model: 5
@@ -208,7 +212,53 @@ Rectangle {
                 }
             }
 
+            // Hover frequency indicator
+            Rectangle {
+                id: frequencyIndicator
+                width: 2
+                height: parent.height
+                color: "#ffffff"
+                opacity: 0.5
+                visible: false
 
+                // Frequency label
+                Rectangle {
+                    color: "#2d2d2d"
+                    border.color: "#ffffff"
+                    border.width: 1
+                    radius: 4
+                    height: freqLabel.height + 8
+                    width: freqLabel.width + 16
+                    anchors.bottom: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+
+                    Label {
+                        id: freqLabel
+                        color: "#ffffff"
+                        font.pixelSize: 12
+                        anchors.centerIn: parent
+                    }
+                }
+            }
+
+            // Mouse area for frequency detection
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                
+                onPositionChanged: (mouse) => {
+                    if (containsMouse) {
+                        let freq = getFrequencyAtPosition(mouse.x);
+                        freqLabel.text = Math.round(freq) + " Hz";
+                        frequencyIndicator.x = mouse.x;
+                        frequencyIndicator.visible = true;
+                    }
+                }
+                
+                onExited: {
+                    frequencyIndicator.visible = false;
+                }
+            }
         }
     }
 }

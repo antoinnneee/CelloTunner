@@ -4,5 +4,8 @@
         <file>qml/main.qml</file>
         <file>qml/TunerStyle.qml</file>
         <file>qml/PeakView.qml</file>
+        <file>qml/SettingsDialog.qml</file>
+        <file>qml/DonationDialog.qml</file>
+        <file>qml/qmldir</file>
     </qresource>
 </RCC>

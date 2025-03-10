@@ -31,6 +31,8 @@ class TunerEngine : public QObject
     Q_PROPERTY(int sampleRate READ sampleRate WRITE setSampleRate NOTIFY sampleRateChanged)
     Q_PROPERTY(int bufferSize READ bufferSize WRITE setBufferSize NOTIFY bufferSizeChanged)
     Q_PROPERTY(int maximumSampleRate READ maximumSampleRate NOTIFY maximumSampleRateChanged)
+    Q_PROPERTY(int maxPeaks READ maxPeaks WRITE setMaxPeaks NOTIFY maxPeaksChanged)
+    Q_PROPERTY(double referenceA READ referenceA WRITE setReferenceA NOTIFY referenceAChanged)
 
 public:
     explicit TunerEngine(QObject *parent = nullptr);
@@ -39,19 +41,30 @@ public:
     void start();
     void stop();
 
+    // Add reload function
+    Q_INVOKABLE void reload() {
+        stop();
+        setupAudioInput();
+        start();
+    }
+
     // Property accessors
     QString currentNote() const { return m_currentNote; }
     double frequency() const { return m_frequency; }
     double cents() const { return m_cents; }
     double signalLevel() const { return m_signalLevel; }
     double dbThreshold() const { return m_dbThreshold; }
-    QVariantList peaks() const { return m_peaks; }
     void setDbThreshold(double threshold);
+    QVariantList peaks() const { return m_peaks; }
     int sampleRate() const { return m_sampleRate; }
     void setSampleRate(int rate);
     int bufferSize() const { return m_bufferSize; }
     void setBufferSize(int size);
     int maximumSampleRate() const { return m_maximumSampleRate; }
+    int maxPeaks() const { return m_maxPeaks; }
+    void setMaxPeaks(int peaks);
+    double referenceA() const { return m_referenceA; }
+    void setReferenceA(double freq);
 
 signals:
     void noteChanged();
@@ -65,6 +78,8 @@ signals:
     void sampleRateChanged();
     void bufferSizeChanged();
     void maximumSampleRateChanged();
+    void maxPeaksChanged();
+    void referenceAChanged();
 
 private slots:
     void processAudioInput();
@@ -72,10 +87,8 @@ private slots:
 private:
     static constexpr int DEFAULT_SAMPLE_RATE = 48000;
     static constexpr int DEFAULT_BUFFER_SIZE = 8112;
-    static constexpr double A4_FREQUENCY = 440.0;
-    static constexpr int HISTORY_SIZE = 1;
-    static constexpr int OUTLIERS_TO_REMOVE = 0;
-    static constexpr int MAX_PEAKS = 10;
+    static constexpr double DEFAULT_A4_FREQUENCY = 440.0;
+    static constexpr int DEFAULT_MAX_PEAKS = 10;
 
     QAudioSource* m_audioSource;
     QIODevice* m_audioDevice;
@@ -92,10 +105,8 @@ private:
     int m_sampleRate = DEFAULT_SAMPLE_RATE;
     int m_bufferSize = DEFAULT_BUFFER_SIZE;
     int m_maximumSampleRate = DEFAULT_SAMPLE_RATE;
-
-    // Frequency history
-    QQueue<double> m_frequencyHistory;
-    double calculateMedianFrequency(double newFrequency);
+    int m_maxPeaks = DEFAULT_MAX_PEAKS;
+    double m_referenceA = DEFAULT_A4_FREQUENCY;
 
     double detectFrequency(const QVector<double>& samples);
     QString frequencyToNote(double frequency, double& cents);
