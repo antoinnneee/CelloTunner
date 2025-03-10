@@ -259,7 +259,6 @@ ApplicationWindow {
         // Signal level display
         Label {
             visible: false
-            height: 0
             Layout.fillWidth: true
             text: "Level: " + tuner.signalLevel.toFixed(1) + " dBFS"
             font.pixelSize: 14
