@@ -109,6 +109,25 @@ ApplicationWindow {
             color: "#2d2d2d"
             radius: 4
 
+            // MouseArea for clicking anywhere on the meter
+            MouseArea {
+                anchors.fill: parent
+                onClicked: (mouse) => {
+                    let percentage = mouse.x / parent.width;
+                    let newThreshold = percentage * 70 - 70;
+                    tuner.dbThreshold = Math.max(-70, Math.min(0, newThreshold));
+                    appSettings.dbThreshold = tuner.dbThreshold;
+                }
+                onPositionChanged: (mouse) => {
+                    if (pressed) {
+                        let percentage = mouse.x / parent.width;
+                        let newThreshold = percentage * 70 - 70;
+                        tuner.dbThreshold = Math.max(-70, Math.min(0, newThreshold));
+                        appSettings.dbThreshold = tuner.dbThreshold;
+                    }
+                }
+            }
+
             // Current level indicator
             Label {
                 text: tuner.signalLevel.toFixed(1) + " dB"
@@ -153,36 +172,35 @@ ApplicationWindow {
                 }
             }
 
-            // Level markers
-            Row {
+            // Level markers and labels combined
+            Item {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 height: parent.height - 12
-                spacing: parent.width / 6
+
+                // Vertical markers
                 Repeater {
-                    model: 6
+                    model: 8 // 8 markers for -70 to 0 with 10dB steps
                     Rectangle {
+                        property int dbValue: -70 + index * 10
+                        x: {
+                            let percentage = (dbValue + 70) / 70;
+                            return parent.width * percentage;
+                        }
                         width: 1
                         height: parent.height
                         color: "#666666"
-                    }
-                }
-            }
 
-            // dB labels
-            Row {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: 12
-                spacing: parent.width / 6
-                Repeater {
-                    model: ["-70", "-60", "-50", "-40", "-30", "-20", "-10", "0"]
-                    Label {
-                        text: modelData
-                        color: "#666666"
-                        font.pixelSize: 10
+                        // dB label for each marker
+                        Label {
+                            text: dbValue.toString()
+                            color: "#666666"
+                            font.pixelSize: 10
+                            anchors.top: parent.bottom
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.topMargin: 2
+                        }
                     }
                 }
             }
@@ -228,8 +246,8 @@ ApplicationWindow {
                         if (drag.active) {
                             let percentage = (thresholdHandle.x + width/2) / parent.parent.width;
                             let newThreshold = percentage * 70 - 70;
-                            tuner.dbThreshold = newThreshold;
-                            appSettings.dbThreshold = newThreshold;
+                            tuner.dbThreshold = Math.max(-70, Math.min(0, newThreshold));
+                            appSettings.dbThreshold = tuner.dbThreshold;
                         }
                     }
                 }
