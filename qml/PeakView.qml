@@ -133,8 +133,9 @@ Rectangle {
             Repeater {
                 model: peaks
                 Rectangle {
-                    property double freq: modelData.frequency
-                    property double amp: modelData.amplitude
+                    property double freq: modelData.frequency || 0
+                    property double amp: modelData.amplitude || 0
+                    property int harmonics: modelData.harmonicCount || 0
                     
                     x: getFrequencyPosition(freq)
                     y: parent.height * (1 - amp)
@@ -143,28 +144,51 @@ Rectangle {
                     radius: 2
                     
                     gradient: Gradient {
-                        GradientStop { position: 0.0; color: "#4CAF50" }
-                        GradientStop { position: 0.7; color: "#FFC107" }
-                        GradientStop { position: 1.0; color: "#FF5722" }
+                        GradientStop { 
+                            position: 0.0
+                            color: harmonics > 0 ? "#4CAF50" : "#455A64"  // Green if has harmonics, grey if not
+                        }
+                        GradientStop { 
+                            position: 0.7
+                            color: harmonics > 0 ? "#FFC107" : "#78909C"
+                        }
+                        GradientStop { 
+                            position: 1.0
+                            color: "#FF5722"
+                        }
                     }
 
+                    // Peak dot
                     Rectangle {
                         color: "#FF5722"
                         width: 4
                         height: 4
                         radius: 2
                         anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.top
                     }
 
-                    // Frequency label
-                    Label {
-                        text: Math.round(freq) + "Hz"
-                        color: "#ffffff"
-                        font.pixelSize: 10
+                    // Peak information
+                    Column {
                         anchors.bottom: parent.top
+                        anchors.bottomMargin: 6
                         anchors.horizontalCenter: parent.horizontalCenter
-                        rotation: -45
-                        visible: index < 3 // Show only top 3 frequencies
+                        spacing: 2
+
+                        Label {
+                            text: Math.round(freq) + " Hz"
+                            color: "#ffffff"
+                            font.pixelSize: 10
+                            anchors.horizontalCenter: parent.horizontalCenter
+                        }
+
+                        Label {
+                            visible: harmonics > 0
+                            text: harmonics + (harmonics === 1 ? " harmonic" : " harmonics")
+                            color: "#4CAF50"  // Green color for harmonics
+                            font.pixelSize: 9
+                            anchors.horizontalCenter: parent.horizontalCenter
+                        }
                     }
                 }
             }

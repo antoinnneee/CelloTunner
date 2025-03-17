@@ -14,9 +14,17 @@
 class QAudioSource;
 class QIODevice;
 
+struct FrequencyHistory {
+    double frequency;
+    int count;
+    double confidence;
+};
+
 struct Peak {
     double frequency;
     double amplitude;
+    int harmonicCount;
+    double harmonicStrength;
 };
 
 class TunerEngine : public QObject
@@ -33,6 +41,8 @@ class TunerEngine : public QObject
     Q_PROPERTY(int maximumSampleRate READ maximumSampleRate NOTIFY maximumSampleRateChanged)
     Q_PROPERTY(int maxPeaks READ maxPeaks WRITE setMaxPeaks NOTIFY maxPeaksChanged)
     Q_PROPERTY(double referenceA READ referenceA WRITE setReferenceA NOTIFY referenceAChanged)
+    Q_PROPERTY(QString detectionMethod READ detectionMethod WRITE setDetectionMethod NOTIFY detectionMethodChanged)
+    Q_PROPERTY(int fftPadding READ fftPadding WRITE setFftPadding NOTIFY fftPaddingChanged)
 
 public:
     explicit TunerEngine(QObject *parent = nullptr);
@@ -65,6 +75,10 @@ public:
     void setMaxPeaks(int peaks);
     double referenceA() const { return m_referenceA; }
     void setReferenceA(double freq);
+    QString detectionMethod() const { return m_detectionMethod; }
+    void setDetectionMethod(const QString &method);
+    int fftPadding() const { return m_fftPadding; }
+    void setFftPadding(int padding);
 
 signals:
     void noteChanged();
@@ -80,6 +94,8 @@ signals:
     void maximumSampleRateChanged();
     void maxPeaksChanged();
     void referenceAChanged();
+    void detectionMethodChanged();
+    void fftPaddingChanged();
 
 private slots:
     void processAudioInput();
@@ -89,6 +105,7 @@ private:
     static constexpr int DEFAULT_BUFFER_SIZE = 8112;
     static constexpr double DEFAULT_A4_FREQUENCY = 440.0;
     static constexpr int DEFAULT_MAX_PEAKS = 10;
+    static constexpr int DEFAULT_FFT_PADDING = 2;  // Default 2x padding
 
     QAudioSource* m_audioSource;
     QIODevice* m_audioDevice;
@@ -107,8 +124,11 @@ private:
     int m_maximumSampleRate = DEFAULT_SAMPLE_RATE;
     int m_maxPeaks = DEFAULT_MAX_PEAKS;
     double m_referenceA = DEFAULT_A4_FREQUENCY;
+    QString m_detectionMethod = "FFT";
+    int m_fftPadding = DEFAULT_FFT_PADDING;
 
-    double detectFrequency(const QVector<double>& samples);
+    double detectFrequencyAutocorrelation(const QVector<double>& samples);
+    double detectFrequencyFFT(const QVector<double>& samples);
     QString frequencyToNote(double frequency, double& cents);
     void setupAudioInput();
     void processAccumulatedData();
@@ -116,8 +136,20 @@ private:
     void updatePeaks(const QVector<Peak>& peaks);
 
     QVector<std::complex<double>> m_fftBuffer;
+    void applyHannWindow(QVector<double>& samples);
+    void performFFT(QVector<std::complex<double>>& data);
 
     void updateMaximumSampleRate();
+
+    void analyzeHarmonics(Peak& fundamental, const QVector<Peak>& peaks);
+    double calculateNoteProbability(const Peak& peak) const;
+    Peak* selectBestPeak(QVector<Peak>& peaks);
+    double getStableFrequency(double newFreq, double confidence);
+    double getNearestNoteFrequency(double frequency) const;
+    
+    QVector<FrequencyHistory> m_frequencyHistory;
+    static constexpr int HISTORY_SIZE = 5;
+
 };
 
 #endif // TUNERENGINE_H 
